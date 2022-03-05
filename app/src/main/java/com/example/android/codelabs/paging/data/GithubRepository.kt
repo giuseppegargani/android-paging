@@ -17,6 +17,9 @@
 package com.example.android.codelabs.paging.data
 
 import android.util.Log
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
 import com.example.android.codelabs.paging.api.GithubService
 import com.example.android.codelabs.paging.api.IN_QUALIFIER
 import com.example.android.codelabs.paging.model.Repo
@@ -25,6 +28,18 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import retrofit2.HttpException
 import java.io.IOException
+
+/* In questo caso getSearchResultStream restituisce Flow e quindi si deve togliere il modificare suspend
+
+ */
+
+/* Il Pager e' incaricato di creare la pagingData e si deve impostare delle configurazioni e COME FACTORY SI METTE LA CLASSE APPENA CREATA!!!!!
+
+ */
+
+/* Dato che si usa Pager si possono anche rimuovere le altre funzioni di Repository!!!!!!!!!!!!!!!!!!
+
+ */
 
 // GitHub page API is 1 based: https://developer.github.com/v3/#pagination
 private const val GITHUB_STARTING_PAGE_INDEX = 1
@@ -47,17 +62,19 @@ class GithubRepository(private val service: GithubService) {
     // avoid triggering multiple requests in the same time
     private var isRequestInProgress = false
 
+
     /**
      * Search repositories whose names match the query, exposed as a stream of data that will emit
      * every time we get more data from the network.
      */
-    suspend fun getSearchResultStream(query: String): Flow<RepoSearchResult> {
-        Log.d("GithubRepository", "New query: $query")
-        lastRequestedPage = 1
-        inMemoryCache.clear()
-        requestAndSaveData(query)
-
-        return searchResults
+    fun getSearchResultStream(query: String): Flow<PagingData<Repo>> {
+        return Pager(
+            config = PagingConfig(
+                pageSize = NETWORK_PAGE_SIZE,
+                enablePlaceholders = false
+            ),
+            pagingSourceFactory = { GithubPagingSource(service, query) }
+        ).flow
     }
 
     suspend fun requestMore(query: String) {
@@ -104,6 +121,7 @@ class GithubRepository(private val service: GithubService) {
         }.sortedWith(compareByDescending<Repo> { it.stars }.thenBy { it.name })
     }
 
+    //Questa e' la pagingSize per pager!!!
     companion object {
         const val NETWORK_PAGE_SIZE = 30
     }
