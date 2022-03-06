@@ -16,26 +16,26 @@
 
 package com.example.android.codelabs.paging.ui
 
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.asLiveData
+import androidx.lifecycle.distinctUntilChanged
+import androidx.lifecycle.liveData
+import androidx.lifecycle.switchMap
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.example.android.codelabs.paging.data.GithubRepository
 import com.example.android.codelabs.paging.model.Repo
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.shareIn
-import kotlinx.coroutines.flow.stateIn
+import com.example.android.codelabs.paging.model.RepoSearchResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+
+// This is outside the ViewModel class, but in the same file
+private const val LAST_QUERY_SCROLLED: String = "last_query_scrolled"
 
 /**
  * ViewModel for the [SearchRepositoriesActivity] screen.
@@ -46,6 +46,7 @@ class SearchRepositoriesViewModel(
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
+    //si e' cambiato il tipo da LiveData a Stateflow!!!
     /**
      * Stream of immutable states representative of the UI.
      */
@@ -53,6 +54,9 @@ class SearchRepositoriesViewModel(
 
     val pagingDataFlow: Flow<PagingData<Repo>>
 
+    /* Il concetto di questo accept e' molto interessante e importante!!!
+
+     */
     /**
      * Processor of side effects from the UI which in turn feedback into [state]
      */
@@ -105,28 +109,41 @@ class SearchRepositoriesViewModel(
         }
     }
 
+    //abbiamo modificato questo metodo lifecycle
     override fun onCleared() {
         savedStateHandle[LAST_SEARCH_QUERY] = state.value.query
         savedStateHandle[LAST_QUERY_SCROLLED] = state.value.lastQueryScrolled
         super.onCleared()
     }
 
+    //abbiamo aggiunto questo metodo che creera' effettivamente il Flow
+    private fun searchRepo(queryString: String): Flow<PagingData<Repo>> = repository.getSearchResultStream(queryString)
 
-    private fun searchRepo(queryString: String): Flow<PagingData<Repo>> =
-        repository.getSearchResultStream(queryString)
 }
+
+//abbiamo cancellato perche' adesso non ne' abbiamo piu' bisogno!!!!
+/*private val UiAction.Scroll.shouldFetchMore
+    get() = visibleItemCount + lastVisibleItemPosition + VISIBLE_THRESHOLD >= totalItemCount*/
+
 
 sealed class UiAction {
     data class Search(val query: String) : UiAction()
+    //versione precedente!!!!   adesso associamo l'azione di scroll con una particolare query!!!!!!!!
+    /*data class Scroll(
+        val visibleItemCount: Int,
+        val lastVisibleItemPosition: Int,
+        val totalItemCount: Int
+    ) : UiAction()*/
     data class Scroll(val currentQuery: String) : UiAction()
 }
 
 data class UiState(
     val query: String = DEFAULT_QUERY,
     val lastQueryScrolled: String = DEFAULT_QUERY,
+    //si vuole che vengano visualizzati i primi risultati solamente se l'utente non ha gia' cominciato a fare scrolling!!!
     val hasNotScrolledForCurrentSearch: Boolean = false
 )
 
-private const val LAST_QUERY_SCROLLED: String = "last_query_scrolled"
+private const val VISIBLE_THRESHOLD = 5
 private const val LAST_SEARCH_QUERY: String = "last_search_query"
 private const val DEFAULT_QUERY = "Android"
